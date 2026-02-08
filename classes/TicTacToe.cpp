@@ -29,6 +29,8 @@ const int HUMAN_PLAYER= 0;      // index of the human player (X)
 
 TicTacToe::TicTacToe()
 {
+    _aiMoved = false;
+    _aiEnabled = true;  // AI is enabled by default
 }
 
 TicTacToe::~TicTacToe()
@@ -55,6 +57,9 @@ void TicTacToe::setUpBoard()
 {
     // Set up 2 players
     setNumberOfPlayers(2);
+    
+    // Reset AI flag
+    _aiMoved = false;
     
     // grid options
     _gameOptions.rowX = 3;
@@ -89,6 +94,11 @@ bool TicTacToe::actionForEmptyHolder(BitHolder *holder)
     Bit *newBit = PieceForPlayer(playerNum);
     newBit->setPosition(holder->getPosition());
     holder->setBit(newBit);
+    
+    // Reset AI flag when human makes a move
+    if (playerNum == HUMAN_PLAYER) {
+        _aiMoved = false;
+    }
 
     return true;
 }
@@ -176,9 +186,7 @@ bool TicTacToe::checkForDraw()
     return true;
 }
 
-//
 // state strings
-//
 std::string TicTacToe::initialStateString()
 {
     return "000000000";
@@ -186,8 +194,6 @@ std::string TicTacToe::initialStateString()
 
 //
 // this still needs to be tied into imguis init and shutdown
-// we will read the state string and store it in each turn object
-//
 std::string TicTacToe::stateString() const
 {
     std::string result = "";
@@ -239,6 +245,156 @@ void TicTacToe::setStateString(const std::string &s)
 //
 void TicTacToe::updateAI() 
 {
-    // we will implement the AI in the next assignment!
+    // Check if AI is enabled
+    if (!_aiEnabled) return;
+    
+    // AI plays as Player 1 (O)
+    if (getCurrentPlayer()->playerNumber() == AI_PLAYER && !_aiMoved) {
+        // Check if game over
+        if (checkForWinner() || checkForDraw()) {
+            return;
+        }
+        
+        _aiMoved = true;
+
+        makeAIMove(AI_PLAYER);
+    }
 }
+
+//
+// Get the current board state as an integer array
+// 0 = empty, 1 = AI player, 2 = human player
+//
+void TicTacToe::getBoardState(int board[9])
+{
+    for (int i = 0; i < 9; i++) {
+        int y = i / 3;
+        int x = i % 3;
+        Bit* bit = _grid[y][x].bit();
+        if (!bit) {
+            board[i] = 0;
+        } else {
+            board[i] = bit->getOwner()->playerNumber() + 1;
+        }
+    }
+}
+
+
+//positive if AI is winning, negative if human is winning, 0 for neutral/draw
+int TicTacToe::evaluateBoard(int board[9])
+{
+    // Check all winning combinations
+    int winningCombinations[8][3] = {
+        {0, 1, 2}, {3, 4, 5}, {6, 7, 8},  // rows
+        {0, 3, 6}, {1, 4, 7}, {2, 5, 8},  // columns
+        {0, 4, 8}, {2, 4, 6}              // diagonals
+    };
+    
+    for (int i = 0; i < 8; i++) {
+        int a = board[winningCombinations[i][0]];
+        int b = board[winningCombinations[i][1]];
+        int c = board[winningCombinations[i][2]];
+        
+        if (a != 0 && a == b && b == c) {
+            // Someone won
+            return (a == 2) ? 10 : -10;
+        }
+    }
+    
+    return 0;  // No winner yet
+}
+
+// Negamax algorithm using integer board representation
+int TicTacToe::negamax(int board[9], int depth, int color)
+{
+    // Check if game is over
+    int boardScore = evaluateBoard(board);
+    if (boardScore != 0) {
+        return color * boardScore;
+    }
+    
+    // Check for draw
+    bool hasEmpty = false;
+    for (int i = 0; i < 9; i++) {
+        if (board[i] == 0) {
+            hasEmpty = true;
+            break;
+        }
+    }
+    if (!hasEmpty) return 0;
+    
+    // Safety: max depth
+    if (depth > 9) return 0;
+    
+    int maxScore = -1000;
+    int currentPlayer = (color == 1) ? 2 : 1;  // 2 = AI, 1 = Human
+    
+    // Try all possible moves
+    for (int i = 0; i < 9; i++) {
+        if (board[i] == 0) {
+            // Make move
+            board[i] = currentPlayer;
+            
+            // Recursive call
+            int score = -negamax(board, depth + 1, -color);
+            
+            // Undo move
+            board[i] = 0;
+            
+            if (score > maxScore) {
+                maxScore = score;
+            }
+        }
+    }
+    
+    return maxScore;
+}
+
+// Make the best move for the AI using negamax
+bool TicTacToe::makeAIMove(int playerNum)
+{
+    int board[9];
+    getBoardState(board);
+    
+    int bestScore = -1000;
+    int bestMove = -1;
+    
+    for (int i = 0; i < 9; i++) {
+        if (board[i] == 0) {
+            // Try this move
+            board[i] = 2;  // AI is player 1, which is represented as 2 in the board array
+            
+            // Evaluate
+            int score = -negamax(board, 1, -1);
+            
+            // Undo
+            board[i] = 0;
+            
+            // Track best
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = i;
+            }
+        }
+    }
+    
+    // Make the best move on the actual board
+    if (bestMove != -1) {
+        int y = bestMove / 3;
+        int x = bestMove % 3;
+        
+        if (_grid[y][x].empty()) {
+            Bit* bit = PieceForPlayer(playerNum);
+            if (bit) {
+                bit->setPosition(_grid[y][x].getPosition());
+                _grid[y][x].setBit(bit);
+                endTurn();
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
 

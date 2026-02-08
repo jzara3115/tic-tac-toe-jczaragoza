@@ -46,6 +46,12 @@ namespace ClassGame {
                 ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
                 ImGui::Text("Current Board State: %s", game->stateString().c_str());
                 
+                // AI Toggle Button
+                ImGui::Separator();
+                if (ImGui::Button(game->_aiEnabled ? "Disable AI" : "Enable AI")) {
+                    game->_aiEnabled = !game->_aiEnabled;
+                }
+                
                 //PLAYER 0 STATS
                 ImGui::Separator();
                 ImGui::Text("Player 0 (X) Stats:");
@@ -83,6 +89,11 @@ namespace ClassGame {
                 ImGui::Begin("GameWindow");
                 game->drawFrame();
                 ImGui::End();
+                
+                // Update AI if it's the AI's turn
+                if (!gameOver) {
+                    game->updateAI();
+                }
         }
 
         // end turn is called by the game code at the end of each turn
@@ -111,7 +122,7 @@ namespace ClassGame {
                 gameOver = true;
                 gameWinner = -1;
                 
-                // Both players get a draw recorded
+                // Both players get a draw
                 player0Draws++;
                 player1Draws++;
             }

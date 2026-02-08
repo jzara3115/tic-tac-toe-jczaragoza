@@ -31,9 +31,19 @@ public:
 	void        updateAI() override;
     bool        gameHasAI() override { return true; }
     BitHolder &getHolderAt(const int x, const int y) override { return _grid[y][x]; }
+    
+    bool        _aiEnabled;
+    
 private:
     Bit *       PieceForPlayer(const int playerNumber);
     Player*     ownerAt(int index ) const;
+    
+    int         negamax(int board[9], int depth, int color);
+    int         evaluateBoard(int board[9]);
+    void        getBoardState(int board[9]);
+    bool        makeAIMove(int playerNum);
+    
+    bool        _aiMoved;
 
     Square      _grid[3][3];
 };
